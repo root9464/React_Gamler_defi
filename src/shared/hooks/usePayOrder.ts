@@ -26,5 +26,22 @@ const usePayOrder = () => {
   });
 };
 
-export { usePayOrder };
+const usePayAllOrders = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationKey: ['pay-all-orders'],
+    mutationFn: async (authorId: number) => {
+      const { data, status, statusText } = await axios.get<PaymentOrder>('api/referral/payment-orders/all', {
+        params: { author_id: authorId },
+      });
+      if (status !== 200) throw new Error(statusText);
+      return validateResult(data, PaymentOrderSchema);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['payment-order', data.cell] });
+    },
+  });
+};
+
+export { usePayAllOrders, usePayOrder };
 export type { PaymentOrder };

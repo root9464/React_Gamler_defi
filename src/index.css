@@ -7,4 +7,10 @@
   #root {
     @apply min-h-screen bg-gray-500 w-full;
   }
+
+  ::-webkit-scrollbar {
+    display: none;
+  }
+
+
 }

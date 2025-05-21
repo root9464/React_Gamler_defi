@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 
-export const validateResult = <T extends z.ZodType>(data: unknown, resType: T): z.infer<T> => {
+export const validateResult = <T extends z.ZodType, R>(data: R, resType: T): z.infer<T> => {
   try {
     return resType.parse(data);
   } catch (error) {

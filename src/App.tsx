@@ -9,6 +9,7 @@ export default function App() {
       <TonConnectButton />
       <InfoAccount />
       <PaymentOrders />
+
       <Toaster />
     </div>
   );
