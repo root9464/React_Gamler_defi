@@ -8,10 +8,10 @@ type DeletePaymentOrderResponse = {
 };
 
 type ValidatorOrder = {
-  txHash: string;
-  txQueryId: number;
+  tx_hash: string;
+  tx_query_id: number;
   target_address: string;
-  orderId: string;
+  payment_order_id: string;
   status: 'pending';
 };
 

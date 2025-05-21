@@ -98,10 +98,10 @@ export const PaymentOrders = () => {
       createToast('Transaction sent', 'transaction sent successfully');
       deleteOrder([
         {
-          txHash: trHash,
-          txQueryId: validUntil,
-          target_address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
-          orderId: orderId,
+          tx_hash: trHash,
+          tx_query_id: validUntil,
+          target_address: address,
+          payment_order_id: orderId,
           status: 'pending',
         },
         { orderId, type: 'single' },
@@ -136,10 +136,10 @@ export const PaymentOrders = () => {
       createToast('Transaction sent', 'transaction sent successfully');
       deleteOrder([
         {
-          txHash: trHash,
-          txQueryId: validUntil,
-          target_address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
-          orderId: 'null',
+          tx_hash: trHash,
+          tx_query_id: validUntil,
+          target_address: address,
+          payment_order_id: 'null',
           status: 'pending',
         },
         { orderId: undefined, type: 'all' },
