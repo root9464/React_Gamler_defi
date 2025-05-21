@@ -1,10 +1,13 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useQueryClient } from '@tanstack/react-query';
-import { Cell, toNano } from '@ton/core';
+import { Address, Cell, toNano } from '@ton/core';
 import { CHAIN, useTonAddress, useTonConnectUI, type SendTransactionRequest } from '@tonconnect/ui-react';
+import { toast } from 'sonner';
 import { type TokenBalance } from '../shared/hooks/useGetJettonWallet';
 import { useGetPaymentOrders } from '../shared/hooks/useGetPaymentOrders';
 import { usePayOrder } from '../shared/hooks/usePayOrder';
 import { findJettonWallet } from './info-account';
+
 export const PaymentOrders = () => {
   const { data: orders } = useGetPaymentOrders(3); // tell the backend to add an endp to det author by wallet_address
   const { mutate: createCell, variables: payingOrderId, isPending, isSuccess, data: trOrder } = usePayOrder();
@@ -14,23 +17,44 @@ export const PaymentOrders = () => {
   const queryClient = useQueryClient();
   const jettonWallet = queryClient.getQueryData<{ balances: TokenBalance[] }>(['jetton-wallet', address]);
   const jettonWalletBalance = findJettonWallet('FROGE', jettonWallet ?? { balances: [] });
-
+  console.log(jettonWalletBalance);
   const pay = async (cell: string) => {
     if (!jettonWalletBalance) return;
-    const message: SendTransactionRequest = {
-      validUntil: Date.now() + 1000 * 60 * 5,
-      network: CHAIN.TESTNET, // change to mainet in prod version
-      messages: [
-        {
-          address: jettonWalletBalance.wallet_address.address,
-          amount: toNano(0.4).toString(),
-          payload: cell,
+    try {
+      const message: SendTransactionRequest = {
+        validUntil: Date.now() + 1000 * 60 * 5,
+        network: CHAIN.TESTNET, // change to mainet in prod version
+        messages: [
+          {
+            address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
+            amount: toNano(0.4).toString(),
+            payload: cell,
+          },
+        ],
+      };
+      const { boc } = await tonConnectUI.sendTransaction(message);
+      const trHash = Cell.fromBase64(boc).hash().toString('hex');
+      console.log(trHash);
+      toast('Transaction sent', {
+        description: 'transaction sent successfully',
+        unstyled: true,
+        position: 'top-center',
+        classNames: {
+          toast: 'bg-white text-gray-500 rounded-[6px] px-3 py-2 w-[300px] border border-[#F2F2F7] shadow-lg',
+          title: 'text-[#231F20]',
         },
-      ],
-    };
-    const { boc } = await tonConnectUI.sendTransaction(message);
-    const trHash = Cell.fromBase64(boc).hash().toString('hex');
-    console.log(trHash);
+      });
+    } catch (_error) {
+      toast('Error sending transaction', {
+        description: 'error pay order',
+        unstyled: true,
+        position: 'top-center',
+        classNames: {
+          toast: 'bg-white text-gray-500 rounded-[6px] px-3 py-2 w-[300px] border border-[#F2F2F7] shadow-lg',
+          title: 'text-[#231F20]',
+        },
+      });
+    }
   };
   return (
     <div className='w-[230px] px-5 py-2 rounded-lg bg-white relative'>
