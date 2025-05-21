@@ -26,7 +26,7 @@ type Level = z.infer<typeof LevelSchema>;
 
 const useGetPaymentOrders = (authorId: number) =>
   useQuery({
-    queryKey: ['payment-orders'],
+    queryKey: ['payment-orders', authorId],
     queryFn: async () => {
       const { data, status, statusText } = await axios.get<PaymentOrder[]>(`/api/referral/${authorId}/payment-orders`);
       if (status !== 200) throw new Error(statusText);

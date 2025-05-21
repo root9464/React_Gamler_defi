@@ -2,8 +2,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Address, Cell, toNano } from '@ton/core';
 import { CHAIN, useTonAddress, useTonConnectUI, type SendTransactionRequest } from '@tonconnect/ui-react';
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 import { toast } from 'sonner';
+import { useDeletePaymentOrder } from '../shared/hooks/useDeletePaymentOrder';
 import { type TokenBalance } from '../shared/hooks/useGetJettonWallet';
 import { useGetPaymentOrders, type PaymentOrder } from '../shared/hooks/useGetPaymentOrders';
 import { usePayAllOrders, usePayOrder } from '../shared/hooks/usePayOrder';
@@ -15,7 +16,7 @@ type Order = {
   isPending: boolean;
   isSuccess: boolean;
   cell: string;
-  pay: (cell: string) => void;
+  pay: (cell: string, orderId: string) => void;
   createCell: (id: string) => void;
 };
 
@@ -43,7 +44,7 @@ const OrderList: FC<Order> = ({ orders, orderId, isPending, isSuccess, cell, pay
             </button>
             <button
               className='bg-blue-500 text-white px-2 py-1 rounded-lg disabled:opacity-50 flex-1'
-              onClick={() => pay(cell)}
+              onClick={() => pay(cell, order.id)}
               disabled={!cell}>
               {isPaid ? 'Pay' : 'Create cell'}
             </button>
@@ -54,7 +55,7 @@ const OrderList: FC<Order> = ({ orders, orderId, isPending, isSuccess, cell, pay
   </div>
 );
 const AUTHOR_ID = 3;
-const successToast = (text: string, description: string) =>
+const createToast = (text: string, description: string) =>
   toast(text, {
     description: description,
     unstyled: true,
@@ -64,6 +65,7 @@ const successToast = (text: string, description: string) =>
       title: 'text-[#231F20]',
     },
   });
+
 export const PaymentOrders = () => {
   const { data: orders } = useGetPaymentOrders(AUTHOR_ID); // tell the backend to add an endp to det author by wallet_address
   const { mutate: createCell, variables: payingOrderId, isPending, isSuccess, data: trOrder } = usePayOrder();
@@ -73,7 +75,7 @@ export const PaymentOrders = () => {
   const queryClient = useQueryClient();
   const jettonWallet = queryClient.getQueryData<{ balances: TokenBalance[] }>(['jetton-wallet', address]);
   const jettonWalletBalance = findJettonWallet('FROGE', jettonWallet ?? { balances: [] });
-  const pay = async (cell: string) => {
+  const pay = async (cell: string, orderId: string) => {
     if (!jettonWalletBalance) return;
     try {
       const message: SendTransactionRequest = {
@@ -90,9 +92,10 @@ export const PaymentOrders = () => {
       const { boc } = await tonConnectUI.sendTransaction(message);
       const trHash = Cell.fromBase64(boc).hash().toString('hex');
       console.log(trHash);
-      successToast('Transaction sent', 'transaction sent successfully');
+      createToast('Transaction sent', 'transaction sent successfully');
+      setDeletingOrderId({ id: orderId, type: 'single' });
     } catch (_error) {
-      successToast('Error sending transaction', 'error pay order');
+      createToast('Error sending transaction', 'error pay order');
     }
   };
 
@@ -117,13 +120,19 @@ export const PaymentOrders = () => {
       const trHash = Cell.fromBase64(boc).hash().toString('hex');
 
       console.log(trHash);
-      successToast('Transaction sent', 'transaction sent successfully');
+      createToast('Transaction sent', 'transaction sent successfully');
+      setDeletingOrderId({ id: undefined, type: 'all' });
     } catch (error) {
       console.error('Payment error:', error);
-      successToast('Error processing payment', error instanceof Error ? error.message : 'Unknown error');
+      createToast('Error processing payment', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
+  const [deletingOrderId, setDeletingOrderId] = useState<{ id: string | undefined; type: 'all' | 'single' }>({ id: undefined, type: 'single' });
+  const { isSuccess: isDeletingOrderSuccess } = useDeletePaymentOrder(deletingOrderId.type, deletingOrderId.id);
+  if (isDeletingOrderSuccess) {
+    queryClient.invalidateQueries({ queryKey: ['payment-orders', AUTHOR_ID] });
+  }
   return (
     <div className='w-[230px] px-5 py-2 rounded-lg bg-white relative flex flex-col gap-2'>
       <p>Payment orders</p>
