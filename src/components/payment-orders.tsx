@@ -4,7 +4,7 @@ import { Address, Cell, toNano } from '@ton/core';
 import { CHAIN, useTonAddress, useTonConnectUI, type SendTransactionRequest } from '@tonconnect/ui-react';
 import { useState, type FC } from 'react';
 import { toast } from 'sonner';
-import { useDeletePaymentOrder } from '../shared/hooks/useDeletePaymentOrder';
+import { useDeletePaymentOrder, type Options } from '../shared/hooks/useDeletePaymentOrder';
 import { type TokenBalance } from '../shared/hooks/useGetJettonWallet';
 import { useGetPaymentOrders, type PaymentOrder } from '../shared/hooks/useGetPaymentOrders';
 import { usePayAllOrders, usePayOrder } from '../shared/hooks/usePayOrder';
@@ -71,6 +71,9 @@ export const PaymentOrders = () => {
   const { mutate: createCell, variables: payingOrderId, isPending, isSuccess, data: trOrder } = usePayOrder();
   const [tonConnectUI] = useTonConnectUI();
 
+  const [deletingOrder, setDeletingOrder] = useState<Options>({ orderId: undefined, authorId: AUTHOR_ID, type: 'single' });
+  const { mutate: deleteOrder } = useDeletePaymentOrder(deletingOrder);
+
   const address = useTonAddress();
   const queryClient = useQueryClient();
   const jettonWallet = queryClient.getQueryData<{ balances: TokenBalance[] }>(['jetton-wallet', address]);
@@ -78,8 +81,9 @@ export const PaymentOrders = () => {
   const pay = async (cell: string, orderId: string) => {
     if (!jettonWalletBalance) return;
     try {
+      const validUntil = Date.now() + 1000 * 60 * 5;
       const message: SendTransactionRequest = {
-        validUntil: Date.now() + 1000 * 60 * 5,
+        validUntil: validUntil,
         network: CHAIN.TESTNET, // change to mainet in prod version
         messages: [
           {
@@ -93,7 +97,14 @@ export const PaymentOrders = () => {
       const trHash = Cell.fromBase64(boc).hash().toString('hex');
       console.log(trHash);
       createToast('Transaction sent', 'transaction sent successfully');
-      setDeletingOrderId({ id: orderId, type: 'single' });
+      setDeletingOrder({ orderId, authorId: AUTHOR_ID, type: 'single' });
+      deleteOrder({
+        txHash: trHash,
+        txQueryId: validUntil,
+        target_address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
+        orderId: orderId,
+        status: 'pending',
+      });
     } catch (_error) {
       createToast('Error sending transaction', 'error pay order');
     }
@@ -105,8 +116,9 @@ export const PaymentOrders = () => {
 
     try {
       const { cell } = await payAllOrders(authorId);
+      const validUntil = Date.now() + 1000 * 60 * 5;
       const message: SendTransactionRequest = {
-        validUntil: Date.now() + 1000 * 60 * 5,
+        validUntil: validUntil,
         network: CHAIN.TESTNET,
         messages: [
           {
@@ -121,18 +133,20 @@ export const PaymentOrders = () => {
 
       console.log(trHash);
       createToast('Transaction sent', 'transaction sent successfully');
-      setDeletingOrderId({ id: undefined, type: 'all' });
+      setDeletingOrder({ orderId: undefined, authorId: AUTHOR_ID, type: 'all' });
+      deleteOrder({
+        txHash: trHash,
+        txQueryId: validUntil,
+        target_address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
+        orderId: 'null',
+        status: 'pending',
+      });
     } catch (error) {
       console.error('Payment error:', error);
       createToast('Error processing payment', error instanceof Error ? error.message : 'Unknown error');
     }
   };
 
-  const [deletingOrderId, setDeletingOrderId] = useState<{ id: string | undefined; type: 'all' | 'single' }>({ id: undefined, type: 'single' });
-  const { isSuccess: isDeletingOrderSuccess } = useDeletePaymentOrder(deletingOrderId.type, deletingOrderId.id);
-  if (isDeletingOrderSuccess) {
-    queryClient.invalidateQueries({ queryKey: ['payment-orders', AUTHOR_ID] });
-  }
   return (
     <div className='w-[230px] px-5 py-2 rounded-lg bg-white relative flex flex-col gap-2'>
       <p>Payment orders</p>
