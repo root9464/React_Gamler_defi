@@ -2,9 +2,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Address, Cell, toNano } from '@ton/core';
 import { CHAIN, useTonAddress, useTonConnectUI, type SendTransactionRequest } from '@tonconnect/ui-react';
-import { useState, type FC } from 'react';
+import { type FC } from 'react';
 import { toast } from 'sonner';
-import { useDeletePaymentOrder, type Options } from '../shared/hooks/useDeletePaymentOrder';
+import { useDeletePaymentOrder } from '../shared/hooks/useDeletePaymentOrder';
 import { type TokenBalance } from '../shared/hooks/useGetJettonWallet';
 import { useGetPaymentOrders, type PaymentOrder } from '../shared/hooks/useGetPaymentOrders';
 import { usePayAllOrders, usePayOrder } from '../shared/hooks/usePayOrder';
@@ -71,8 +71,7 @@ export const PaymentOrders = () => {
   const { mutate: createCell, variables: payingOrderId, isPending, isSuccess, data: trOrder } = usePayOrder();
   const [tonConnectUI] = useTonConnectUI();
 
-  const [deletingOrder, setDeletingOrder] = useState<Options>({ orderId: undefined, authorId: AUTHOR_ID, type: 'single' });
-  const { mutate: deleteOrder } = useDeletePaymentOrder(deletingOrder);
+  const { mutate: deleteOrder } = useDeletePaymentOrder(AUTHOR_ID);
 
   const address = useTonAddress();
   const queryClient = useQueryClient();
@@ -97,14 +96,16 @@ export const PaymentOrders = () => {
       const trHash = Cell.fromBase64(boc).hash().toString('hex');
       console.log(trHash);
       createToast('Transaction sent', 'transaction sent successfully');
-      setDeletingOrder({ orderId, authorId: AUTHOR_ID, type: 'single' });
-      deleteOrder({
-        txHash: trHash,
-        txQueryId: validUntil,
-        target_address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
-        orderId: orderId,
-        status: 'pending',
-      });
+      deleteOrder([
+        {
+          txHash: trHash,
+          txQueryId: validUntil,
+          target_address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
+          orderId: orderId,
+          status: 'pending',
+        },
+        { orderId, type: 'single' },
+      ]);
     } catch (_error) {
       createToast('Error sending transaction', 'error pay order');
     }
@@ -133,14 +134,16 @@ export const PaymentOrders = () => {
 
       console.log(trHash);
       createToast('Transaction sent', 'transaction sent successfully');
-      setDeletingOrder({ orderId: undefined, authorId: AUTHOR_ID, type: 'all' });
-      deleteOrder({
-        txHash: trHash,
-        txQueryId: validUntil,
-        target_address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
-        orderId: 'null',
-        status: 'pending',
-      });
+      deleteOrder([
+        {
+          txHash: trHash,
+          txQueryId: validUntil,
+          target_address: Address.parse(jettonWalletBalance.wallet_address.address).toString(),
+          orderId: 'null',
+          status: 'pending',
+        },
+        { orderId: undefined, type: 'all' },
+      ]);
     } catch (error) {
       console.error('Payment error:', error);
       createToast('Error processing payment', error instanceof Error ? error.message : 'Unknown error');

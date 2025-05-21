@@ -7,8 +7,6 @@ type DeletePaymentOrderResponse = {
   message: string;
 };
 
-type DeleteType = 'all' | 'single';
-
 type ValidatorOrder = {
   txHash: string;
   txQueryId: number;
@@ -19,8 +17,7 @@ type ValidatorOrder = {
 
 type Options = {
   orderId?: string;
-  authorId: number;
-  type: DeleteType;
+  type: 'all' | 'single';
 };
 
 const ValidationStatus = z.enum(['pending', 'waiting', 'running', 'success', 'failed']);
@@ -39,34 +36,34 @@ const validationTransaction = async (order: ValidatorOrder): Promise<ValidatorOr
   return validateResult(data, ValidatorOrderSchema);
 };
 
-const useDeletePaymentOrder = ({ orderId, type, authorId }: Options) => {
+const deletePaymentOrder = async (type: Options['type'], orderId?: string) => {
+  const endpoint = type === 'all' ? '/api/referral/payment-orders/all' : `/api/referral/payment-orders/${orderId}`;
+  const { data, status, statusText } = await axios.delete<DeletePaymentOrderResponse>(endpoint);
+  if (status !== 200) throw new Error(statusText);
+  return data;
+};
+
+const useDeletePaymentOrder = (authorId: number) => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationKey: ['delete-payment-order', orderId, type],
-    mutationFn: async (order: ValidatorOrder) => {
+    mutationKey: ['delete-payment-order', authorId],
+    mutationFn: async ([order, options]: [ValidatorOrder, Options]) => {
       await new Promise((resolve) => setTimeout(resolve, 1000 * 10 * 6 * 2)); // 120000 = 2 minutes
       console.log('start');
       const result = await validationTransaction(order);
-      return { result, type };
+      return { result, options };
     },
-    onSuccess: async ({ type: DeleteType }) => {
-      switch (DeleteType) {
-        case 'all': {
-          const { data, status, statusText } = await axios.delete<DeletePaymentOrderResponse>(`/api/referral/payment-orders/all`);
-          if (status !== 200) throw new Error(statusText);
-          return data;
-        }
-        case 'single': {
+    onSuccess: async ({ result: ValidData, options: { type, orderId } }) => {
+      switch (true) {
+        case ValidData.status === 'success' && type === 'all':
+          return await deletePaymentOrder('all');
+        case ValidData.status === 'success' && type === 'single':
           if (!orderId) throw new Error('Order ID is required');
-          const { data, status, statusText } = await axios.delete<DeletePaymentOrderResponse>(`/api/referral/payment-orders/${orderId}`);
-          if (status !== 200) throw new Error(statusText);
-          return data;
-        }
+          return await deletePaymentOrder('single', orderId);
         default:
           throw new Error('Invalid delete type');
       }
     },
-
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['payment-orders', authorId] });
     },
